@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>บันทึกรายได้รถตู้</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#EEF3F4;--card:#fff;--ink:#12303A;--mute:#5F7780;--line:#D3DEE1;--in:#0B7A75;--out:#C4452D;--ac:#12303A;--on:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#0D1B20;--card:#152930;--ink:#E6F0F2;--mute:#8FA8B0;--line:#264049;--in:#3CC3BB;--out:#FF8466;--ac:#3CC3BB;--on:#0D1B20}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans Thai',system-ui,sans-serif;line-height:1.5}
+main{max-width:760px;margin:0 auto;padding:16px}
+h1{font-size:1.35rem;margin:0 0 4px;font-weight:800}h2{font-size:1rem;margin:0 0 10px;font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
+.sub{color:var(--mute);font-size:.85rem}.err{color:var(--out);font-size:.9rem;margin-top:8px}
+label{display:block;font-size:.85rem;color:var(--mute);margin-bottom:8px}
+input,select,button{font:inherit;color:inherit}
+input,select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);margin-top:4px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.btn{width:100%;padding:12px;border:0;border-radius:10px;background:var(--ac);color:var(--on);font-weight:800;cursor:pointer;margin-top:8px}
+.btn.g{background:transparent;color:var(--ink);border:1px solid var(--line)}.btn.w{background:var(--out);color:var(--on)}.btn.s{width:auto;padding:6px 12px;margin:0;font-weight:600}
+.row{display:flex;gap:8px;align-items:flex-end}.row>*{flex:1;min-width:0}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px}
+.badge{display:inline-block;padding:2px 12px;border-radius:999px;font-weight:800;background:var(--ac);color:var(--on);font-size:.8rem}
+.nav{display:flex;gap:6px;overflow-x:auto;margin-bottom:12px}.nav button{flex:1;white-space:nowrap;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);cursor:pointer;font-weight:600}.nav button.on{background:var(--ac);color:var(--on)}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:10px}.seg button{flex:1;padding:10px;border:0;background:transparent;cursor:pointer;font-weight:600}.seg .on.in{background:var(--in);color:var(--on)}.seg .on.out{background:var(--out);color:var(--on)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}.chips button{padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:transparent;cursor:pointer}.chips .on{background:var(--ac);color:var(--on);border-color:var(--ac)}
+.day{display:flex;justify-content:space-between;font-size:.85rem;color:var(--mute);margin:12px 0 4px;font-weight:600}
+.it{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line)}.it .n{flex:1;min-width:0}.it .v{font-weight:600;white-space:nowrap}.in{color:var(--in)}.out{color:var(--out)}
+.kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:14px}.kp div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}.kp small{display:block;color:var(--mute)}.kp b{font-size:1.15rem}
+details{border-top:1px solid var(--line);padding:8px 0}summary{cursor:pointer;font-weight:600}
+.sm{display:grid;grid-template-columns:1fr auto;gap:4px 12px;margin:8px 0}.sm span:nth-child(even){text-align:right;font-weight:600}
+.flash{background:var(--card);border:1px solid var(--ac);border-radius:12px;padding:10px 14px;margin-bottom:12px}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script>
+var SRCS={grab:'Grab',bolt:'Bolt',groundline:'GroundLine',agent:'Agent',other:'อื่นๆ'};
+var CATS={fuel:'น้ำมัน/แก๊ส',repair:'ซ่อมบำรุง',park:'ล้างรถ/ที่จอด/ทางด่วน',other:'อื่นๆ'};
+var TOKEN=null,ME=null,TAB='rec',SEL='',USERS=[],ENT=[],DASH={weeks:[],withdrawals:[]},TYPE='in',SRC='other',CAT='fuel',EDIT=null,ARM='',MSG='',FORM={},HF={user:'',from:'',to:''};
+var app=document.getElementById('app');
+function $(id){return document.getElementById(id);}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function fmt(n){return '฿'+Number(n||0).toLocaleString('th-TH',{maximumFractionDigits:2});}
+function today(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function dth(s){return new Date(s+'T00:00:00').toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short'});}
+function lab(un){var u=USERS.filter(function(x){return x.username===un;})[0];return u?((u.plate||'ไม่ระบุทะเบียน')+' – '+u.name):un;}
+function curUser(){return USERS.filter(function(x){return x.username===SEL;})[0]||{};}
+function call(a,p){
+  return new Promise(function(ok,no){
+    google.script.run.withSuccessHandler(function(r){
+      var o=JSON.parse(r);
+      if(o&&o.error){if(/เซสชัน|ยังไม่ได้เข้าสู่ระบบ|ปิดใช้งาน/.test(o.error))logout(o.error);no(new Error(o.error));}else ok(o);
+    }).withFailureHandler(function(e){no(new Error(e&&e.message||'เชื่อมต่อไม่ได้'));}).api(a,TOKEN,p||{});
+  });
+}
+function flash(m){MSG=m;render();}
+function fail(e){flash(e.message);}
+function calc(es,pct,reserve){
+  var i=0,o=0,ib={},bk={};
+  es.forEach(function(e){if(e.type==='in'){i+=e.amount;ib[e.src||'other']=(ib[e.src||'other']||0)+e.amount;}else{o+=e.amount;bk[e.cat||'other']=(bk[e.cat||'other']||0)+e.amount;}});
+  var base=Math.max(0,i-o),res=Math.min(Math.max(Number(reserve)||0,0),base);base-=res;
+  var pc=Math.min(100,Math.max(0,Number(pct)||0)),d=Math.round(base*pc)/100;
+  return{i:i,o:o,net:i-o,res:res,pct:pc,d:d,own:base-d};
+}
+function itemsHtml(items){
+  var arr=items.slice().sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:a.ts-b.ts;}),cur='',s='';
+  arr.forEach(function(e){
+    if(e.date!==cur){cur=e.date;s+='<div class="day"><span>'+dth(cur)+'</span></div>';}
+    s+='<div class="it"><div class="n"><b>'+(e.type==='in'?SRCS[e.src||'other']:CATS[e.cat||'other'])+'</b>'+(e.note?': '+esc(e.note):'')+'</div><span class="v '+e.type+'">'+(e.type==='in'?'+':'−')+fmt(e.amount)+'</span></div>';
+  });
+  return s;
+}
+function userOpts(sel,all){
+  return (all?'<option value="">ทุกคัน</option>':'')+USERS.filter(function(u){return u.active!=='N';}).map(function(u){return '<option value="'+esc(u.username)+'"'+(u.username===sel?' selected':'')+'>'+esc(lab(u.username))+'</option>';}).join('');
+}
+
+/* ---------- เข้าสู่ระบบ ---------- */
+function loginView(){
+  app.innerHTML='<section class="card" style="margin-top:10vh"><h1>เข้าสู่ระบบ</h1><div class="sub" style="margin-bottom:12px">บันทึกรายได้รถตู้</div>'
+    +'<label>Username<input id="lu" autocomplete="username" autocapitalize="none"></label>'
+    +'<label>รหัสผ่าน<input id="lp" type="password" autocomplete="current-password"></label>'
+    +'<button class="btn" data-act="login">เข้าสู่ระบบ</button><div class="err" id="lm"></div></section>';
+  $('lp').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});
+}
+function doLogin(){
+  $('lm').textContent='กำลังตรวจสอบ...';
+  call('login',{username:$('lu').value,password:$('lp').value}).then(function(r){
+    TOKEN=r.token;ME=r.me;try{localStorage.setItem('vt',TOKEN);}catch(e){}
+    boot();
+  }).catch(function(e){$('lm').textContent=e.message;});
+}
+function logout(m){TOKEN=null;ME=null;try{localStorage.removeItem('vt');}catch(e){}loginView();if(m&&$('lm'))$('lm').textContent=m;}
+function boot(){
+  TAB='rec';
+  var p=ME.role==='admin'?call('dashboard').then(function(d){DASH=d;USERS=d.users;var f=USERS.filter(function(u){return u.role==='user'&&u.active!=='N';})[0];SEL=f?f.username:ME.username;}):Promise.resolve();
+  p.then(function(){return call('listEntries',{username:ME.role==='admin'?SEL:''});}).then(function(es){ENT=es;render();}).catch(fail);
+}
+function refresh(){
+  var adm=ME.role==='admin';
+  (adm?call('dashboard').then(function(d){DASH=d;USERS=d.users;}):Promise.resolve())
+    .then(function(){return call('listEntries',{username:adm?SEL:''});}).then(function(es){ENT=es;render();}).catch(fail);
+}
+
+/* ---------- หน้าจอ ---------- */
+function render(){
+  if(!ME){loginView();return;}
+  var adm=ME.role==='admin',h='<div class="top"><div><b>'+esc(ME.name)+'</b> <span class="badge">'+(adm?'Admin':'User')+'</span></div><button class="btn g s" data-act="logout">ออกจากระบบ</button></div>';
+  if(MSG){h+='<div class="flash">'+esc(MSG)+'</div>';MSG='';}
+  if(adm){
+    h+='<div class="nav">'+[['rec','บันทึก'],['sum','สรุปสัปดาห์'],['his','ประวัติ'],['fund','กองทุนซ่อม'],['usr','ผู้ใช้']].map(function(t){return '<button data-act="tab" data-v="'+t[0]+'" class="'+(TAB===t[0]?'on':'')+'">'+t[1]+'</button>';}).join('')+'</div>';
+  }
+  h+=TAB==='sum'?sumView():TAB==='his'?hisView():TAB==='fund'?fundView():TAB==='usr'?usrView():recView();
+  app.innerHTML=h;
+}
+function grab(){if($('am'))FORM={amount:$('am').value,note:$('nt').value,date:$('dt').value};}
+function recView(){
+  var adm=ME.role==='admin',f=FORM,h='';
+  if(adm)h+='<div class="card"><label>เลือกรถ/คนขับ<select id="selu">'+userOpts(SEL)+'</select></label></div>';
+  h+='<div class="card"><h2>'+(EDIT?'แก้ไขรายการ':'เพิ่มรายการ')+'</h2><div class="seg"><button data-act="type" data-v="in" class="'+(TYPE==='in'?'on in':'')+'">รายได้</button><button data-act="type" data-v="out" class="'+(TYPE==='out'?'on out':'')+'">ค่าใช้จ่าย</button></div><div class="chips">';
+  var m=TYPE==='in'?SRCS:CATS,cur=TYPE==='in'?SRC:CAT;
+  h+=Object.keys(m).map(function(k){return '<button data-act="chip" data-v="'+k+'" class="'+(k===cur?'on':'')+'">'+m[k]+'</button>';}).join('')+'</div>';
+  h+='<label>จำนวนเงิน (บาท)<input id="am" type="number" inputmode="decimal" min="0" value="'+esc(f.amount||'')+'"></label><label>หมายเหตุ (ไม่บังคับ)<input id="nt" value="'+esc(f.note||'')+'"></label><label>วันที่<input id="dt" type="date" value="'+esc(f.date||today())+'"></label>';
+  h+='<button class="btn" data-act="saveEntry">'+(EDIT?'บันทึกการแก้ไข':'บันทึกรายการ')+'</button>'+(EDIT?'<button class="btn g" data-act="cancelEdit">ยกเลิก</button>':'')+'</div>';
+  var sorted=ENT.slice().sort(function(a,b){return a.date<b.date?1:a.date>b.date?-1:b.ts-a.ts;}),dt={},cur2='';
+  sorted.forEach(function(e){if(e.type==='in')dt[e.date]=(dt[e.date]||0)+e.amount;});
+  h+='<div class="card"><h2>รายการสัปดาห์ที่ยังไม่ปิด</h2>';
+  if(!sorted.length)h+='<div class="sub">ยังไม่มีรายการ</div>';
+  sorted.forEach(function(e){
+    if(e.date!==cur2){cur2=e.date;h+='<div class="day"><span>'+dth(e.date)+'</span><span>รายได้ '+fmt(dt[e.date]||0)+'</span></div>';}
+    h+='<div class="it"><div class="n"><b>'+(e.type==='in'?SRCS[e.src||'other']:CATS[e.cat||'other'])+'</b>'+(e.note?': '+esc(e.note):'')+'</div><span class="v '+e.type+'">'+(e.type==='in'?'+':'−')+fmt(e.amount)+'</span>'
+      +(adm?'<button class="btn g s" data-act="edit" data-id="'+e.id+'">แก้ไข</button><button class="btn g s '+(ARM==='de:'+e.id?'w':'')+'" data-act="del" data-id="'+e.id+'">'+(ARM==='de:'+e.id?'ยืนยันลบ':'ลบ')+'</button>':'')+'</div>';
+  });
+  return h+'</div>';
+}
+function sumView(){
+  var u=curUser(),inR=ENT.filter(function(e){return e.date>=u.wStart&&e.date<=u.wEnd;}),c=calc(inR,u.pct,u.reserve);
+  return '<div class="card"><label>เลือกรถ/คนขับ<select id="selu">'+userOpts(SEL)+'</select></label></div>'
+   +'<div class="card"><h2>ตั้งค่าสัปดาห์</h2><div class="row"><label>เริ่ม<input id="ws" type="date" value="'+esc(u.wStart)+'"></label><label>สิ้นสุด<input id="we" type="date" value="'+esc(u.wEnd)+'"></label></div>'
+   +'<div class="row"><label>ส่วนแบ่งคนขับ (%)<input id="pc" type="number" value="'+esc(u.pct)+'"></label><label>กันค่าซ่อม (บาท)<input id="rs" type="number" value="'+esc(u.reserve)+'"></label></div><button class="btn g" data-act="saveSet">บันทึกการตั้งค่า</button></div>'
+   +'<div class="card"><h2>สรุป '+esc(u.wStart)+' ถึง '+esc(u.wEnd)+'</h2><div class="sm"><span>รายได้</span><span>'+fmt(c.i)+'</span><span>ค่าใช้จ่าย</span><span>'+fmt(c.o)+'</span><span>ยอดสุทธิ</span><span>'+fmt(c.net)+'</span><span>กันค่าซ่อมบำรุง</span><span>'+fmt(c.res)+'</span><span>คนขับ ('+c.pct+'%)</span><span>'+fmt(c.d)+'</span><span>เจ้าของรถ</span><span>'+fmt(c.own)+'</span></div>'
+   +(ENT.length>inR.length?'<div class="sub">มี '+(ENT.length-inR.length)+' รายการอยู่นอกช่วง ไม่นับในสรุป</div>':'')
+   +'<button class="btn '+(ARM==='close'?'w':'')+'" data-act="close">'+(ARM==='close'?'ยืนยันปิดสัปดาห์':'สรุปและปิดสัปดาห์')+'</button></div>';
+}
+function hisFilter(){
+  return DASH.weeks.filter(function(w){return (!HF.user||w.username===HF.user)&&(!HF.from||w.end>=HF.from)&&(!HF.to||w.end<=HF.to);}).sort(function(a,b){return a.end<b.end?1:a.end>b.end?-1:0;});
+}
+function hisView(){
+  var f=hisFilter(),T={i:0,o:0,net:0,d:0,own:0,res:0},used=0;
+  f.forEach(function(w){T.i+=w.i;T.o+=w.o;T.net+=w.net;T.d+=w.d;T.own+=w.own;T.res+=w.res;});
+  DASH.weeks.forEach(function(w){});
+  var res=0;DASH.weeks.forEach(function(w){if(!HF.user||w.username===HF.user)res+=w.res;});
+  DASH.withdrawals.forEach(function(w){if(!HF.user||w.username===HF.user)used+=w.amount;});
+  var kp=[['รายได้รวม',T.i],['ค่าใช้จ่ายรวม',T.o],['ยอดสุทธิ',T.net],['คนขับได้รับ',T.d],['เจ้าของได้รับ',T.own],['กองทุนซ่อมคงเหลือ',res-used]];
+  return '<div class="card"><label>รถ<select id="hu">'+userOpts(HF.user,true)+'</select></label><div class="row"><label>สัปดาห์สิ้นสุดตั้งแต่<input id="hf" type="date" value="'+esc(HF.from)+'"></label><label>ถึง<input id="ht" type="date" value="'+esc(HF.to)+'"></label></div></div>'
+   +'<div class="kp">'+kp.map(function(k){return '<div><small>'+k[0]+'</small><b>'+fmt(k[1])+'</b></div>';}).join('')+'</div>'
+   +'<div class="row"><button class="btn g" data-act="csvS">ส่งออกสรุปรายสัปดาห์ (CSV)</button><button class="btn g" data-act="csvD">ส่งออกรายการละเอียด (CSV)</button></div>'
+   +'<div class="card" style="margin-top:14px"><h2>รายงานย้อนหลัง ('+f.length+' สัปดาห์)</h2>'+(f.length?f.map(function(w){
+     return '<details><summary>'+dth(w.start)+' – '+dth(w.end)+', '+esc(lab(w.username))+', สุทธิ '+fmt(w.net)+'</summary><div class="sm"><span>รายได้</span><span>'+fmt(w.i)+'</span><span>ค่าใช้จ่าย</span><span>'+fmt(w.o)+'</span><span>กันค่าซ่อม</span><span>'+fmt(w.res)+'</span><span>คนขับ ('+w.pct+'%)</span><span>'+fmt(w.d)+'</span><span>เจ้าของรถ</span><span>'+fmt(w.own)+'</span></div>'
+       +itemsHtml(w.items)+'<button class="btn g '+(ARM==='dw:'+w.id?'w':'')+'" data-act="delWeek" data-id="'+w.id+'">'+(ARM==='dw:'+w.id?'ยืนยัน (รายการจะกลับไปเป็นสัปดาห์ที่ยังไม่ปิด)':'ลบรายงาน (เปิดสัปดาห์กลับมาแก้)')+'</button></details>';
+   }).join(''):'<div class="sub">ยังไม่มีรายงาน</div>')+'</div>';
+}
+function fundView(){
+  var h='<div class="card"><h2>ยอดคงเหลือกองทุนซ่อมบำรุง</h2>'+USERS.filter(function(u){return u.role==='user';}).map(function(u){
+    var r=0,x=0;DASH.weeks.forEach(function(w){if(w.username===u.username)r+=w.res;});DASH.withdrawals.forEach(function(w){if(w.username===u.username)x+=w.amount;});
+    return '<div class="it"><div class="n">'+esc(lab(u.username))+'<br><span class="sub">เก็บ '+fmt(r)+', ใช้ '+fmt(x)+'</span></div><b>'+fmt(r-x)+'</b></div>';
+  }).join('')+'</div><div class="card"><h2>รายการใช้เงินกองทุน</h2>';
+  var l=DASH.withdrawals.slice().sort(function(a,b){return b.ts-a.ts;});
+  h+=(l.length?l.map(function(w){return '<div class="it"><div class="n">'+esc(w.note||'ใช้จากกองทุน')+'<br><span class="sub">'+dth(w.date)+', '+esc(lab(w.username))+'</span></div><span class="v out">−'+fmt(w.amount)+'</span><button class="btn g s '+(ARM==='dx:'+w.id?'w':'')+'" data-act="delW" data-id="'+w.id+'">'+(ARM==='dx:'+w.id?'ยืนยันลบ':'ลบ')+'</button></div>';}).join(''):'<div class="sub">ยังไม่มีรายการ</div>')+'</div>';
+  return h+'<div class="card"><h2>เพิ่มรายการใช้เงินกองทุน</h2><label>รถ<select id="fu">'+userOpts(SEL)+'</select></label><div class="row"><label>ยอด (บาท)<input id="fa" type="number"></label><label>วันที่<input id="fd" type="date" value="'+today()+'"></label></div><label>ใช้ทำอะไร<input id="fn"></label><button class="btn" data-act="addW">เพิ่มรายการ</button></div>';
+}
+function usrView(){
+  return USERS.map(function(u){
+    return '<div class="card" data-u="'+esc(u.username)+'"><h2>'+esc(u.username)+' <span class="badge">'+u.role+'</span>'+(u.active==='N'?' <span class="sub">(ปิดใช้งาน)</span>':'')+'</h2>'
+     +'<div class="row"><label>ชื่อ<input data-f="name" value="'+esc(u.name)+'"></label><label>ทะเบียน<input data-f="plate" value="'+esc(u.plate)+'"></label></div>'
+     +'<div class="row"><label>ส่วนแบ่ง %<input data-f="pct" type="number" value="'+esc(u.pct)+'"></label><label>กันซ่อม<input data-f="reserve" type="number" value="'+esc(u.reserve)+'"></label></div>'
+     +'<div class="row"><label>สิทธิ์<select data-f="role"><option value="user"'+(u.role==='user'?' selected':'')+'>User</option><option value="admin"'+(u.role==='admin'?' selected':'')+'>Admin</option></select></label><label>สถานะ<select data-f="active"><option value="Y"'+(u.active!=='N'?' selected':'')+'>ใช้งาน</option><option value="N"'+(u.active==='N'?' selected':'')+'>ปิด</option></select></label></div>'
+     +'<label>ตั้งรหัสผ่านใหม่ (เว้นว่างถ้าไม่เปลี่ยน)<input data-f="password" type="password" autocomplete="new-password"></label><button class="btn g" data-act="saveUser" data-id="'+esc(u.username)+'">บันทึก</button></div>';
+  }).join('')+'<div class="card" id="newu"><h2>เพิ่มผู้ใช้</h2><div class="row"><label>Username<input data-n="username" autocapitalize="none"></label><label>รหัสผ่าน (6 ตัวขึ้นไป)<input data-n="password" type="password" autocomplete="new-password"></label></div>'
+    +'<div class="row"><label>ชื่อ<input data-n="name"></label><label>ทะเบียน<input data-n="plate"></label></div><div class="row"><label>ส่วนแบ่ง %<input data-n="pct" type="number" value="50"></label><label>สิทธิ์<select data-n="role"><option value="user">User</option><option value="admin">Admin</option></select></label></div><button class="btn" data-act="addUser">เพิ่มผู้ใช้</button></div>';
+}
+
+/* ---------- CSV ---------- */
+function dl(name,rows){
+  var t='\ufeff'+rows.map(function(r){return r.map(function(c){c=c==null?'':String(c);return /[",\n\r]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c;}).join(',');}).join('\r\n');
+  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:'text/csv;charset=utf-8'}));a.download=name;document.body.appendChild(a);a.click();a.remove();
+}
+function csvS(){
+  var rows=[['สัปดาห์เริ่ม','สัปดาห์สิ้นสุด','ทะเบียน','คนขับ','รายได้','ค่าใช้จ่าย','ยอดสุทธิ','กันค่าซ่อมบำรุง','ส่วนแบ่งคนขับ (%)','คนขับได้รับ','เจ้าของรถได้รับ'].concat(Object.keys(SRCS).map(function(k){return 'รายได้ '+SRCS[k];}),Object.keys(CATS).map(function(k){return 'ค่าใช้จ่าย '+CATS[k];}))];
+  hisFilter().reverse().forEach(function(w){var u=USERS.filter(function(x){return x.username===w.username;})[0]||{};rows.push([w.start,w.end,u.plate||'',u.name||w.username,w.i,w.o,w.net,w.res,w.pct,w.d,w.own].concat(Object.keys(SRCS).map(function(k){return w.ib[k]||0;}),Object.keys(CATS).map(function(k){return w.bk[k]||0;})));});
+  dl('van-weekly-summary-'+today()+'.csv',rows);
+}
+function csvD(){
+  var rows=[['สัปดาห์เริ่ม','สัปดาห์สิ้นสุด','ทะเบียน','คนขับ','วันที่รายการ','ประเภท','ช่องทาง/หมวด','หมายเหตุ','จำนวนเงิน']];
+  hisFilter().reverse().forEach(function(w){var u=USERS.filter(function(x){return x.username===w.username;})[0]||{};w.items.forEach(function(e){rows.push([w.start,w.end,u.plate||'',u.name||w.username,e.date,e.type==='in'?'รายได้':'ค่าใช้จ่าย',e.type==='in'?SRCS[e.src||'other']:CATS[e.cat||'other'],e.note,e.amount]);});});
+  DASH.withdrawals.forEach(function(w){if(HF.user&&w.username!==HF.user)return;if((HF.from&&w.date<HF.from)||(HF.to&&w.date>HF.to))return;var u=USERS.filter(function(x){return x.username===w.username;})[0]||{};rows.push(['','',u.plate||'',u.name||w.username,w.date,'ใช้เงินกองทุนซ่อม','กองทุนซ่อมบำรุง',w.note,w.amount]);});
+  dl('van-transactions-'+today()+'.csv',rows);
+}
+
+/* ---------- ปุ่มและช่องกรอก ---------- */
+function twoStep(key,run){if(ARM===key){ARM='';run();}else{ARM=key;render();}}
+document.body.addEventListener('click',function(ev){
+  var t=ev.target.closest('[data-act]');if(!t)return;
+  var a=t.getAttribute('data-act'),v=t.getAttribute('data-v'),id=t.getAttribute('data-id'),was=ARM;
+  if(a!=='del'&&a!=='close'&&a!=='delWeek'&&a!=='delW'&&ARM){ARM='';}
+  if(a==='login'){doLogin();return;}
+  if(a==='logout'){logout();return;}
+  if(a==='tab'){grab();TAB=v;render();return;}
+  if(a==='type'){grab();TYPE=v;render();return;}
+  if(a==='chip'){grab();if(TYPE==='in')SRC=v;else CAT=v;render();return;}
+  if(a==='cancelEdit'){EDIT=null;FORM={};render();return;}
+  if(a==='saveEntry'){
+    grab();
+    var p={type:TYPE,src:SRC,cat:CAT,amount:FORM.amount,note:FORM.note,date:FORM.date,username:SEL};
+    if(EDIT)p.id=EDIT;
+    call(EDIT?'updateEntry':'addEntry',p).then(function(){EDIT=null;FORM={date:p.date};MSG='บันทึกแล้ว';refresh();}).catch(fail);return;
+  }
+  if(a==='edit'){
+    var e=ENT.filter(function(x){return x.id===id;})[0];if(!e)return;
+    EDIT=id;TYPE=e.type;if(e.type==='in')SRC=e.src||'other';else CAT=e.cat||'other';FORM={amount:e.amount,note:e.note,date:e.date};render();window.scrollTo(0,0);return;
+  }
+  if(a==='del'){twoStep('de:'+id,function(){call('deleteEntry',{id:id}).then(function(){MSG='ลบแล้ว';refresh();}).catch(fail);});return;}
+  if(a==='saveSet'){call('updateUser',{username:SEL,wStart:$('ws').value,wEnd:$('we').value,pct:$('pc').value,reserve:$('rs').value}).then(function(){MSG='บันทึกการตั้งค่าแล้ว';refresh();}).catch(fail);return;}
+  if(a==='close'){var u=curUser();twoStep('close',function(){call('closeWeek',{username:SEL,start:u.wStart,end:u.wEnd}).then(function(){MSG='ปิดสัปดาห์แล้ว ดูได้ในแท็บประวัติ';refresh();}).catch(fail);});return;}
+  if(a==='delWeek'){twoStep('dw:'+id,function(){call('deleteWeek',{id:id}).then(function(){MSG='ลบรายงานแล้ว รายการกลับไปอยู่ในสัปดาห์ที่ยังไม่ปิด';refresh();}).catch(fail);});return;}
+  if(a==='csvS'){csvS();return;}
+  if(a==='csvD'){csvD();return;}
+  if(a==='addW'){call('addWithdrawal',{username:$('fu').value,amount:$('fa').value,date:$('fd').value,note:$('fn').value}).then(function(){MSG='เพิ่มแล้ว';refresh();}).catch(fail);return;}
+  if(a==='delW'){twoStep('dx:'+id,function(){call('deleteWithdrawal',{id:id}).then(function(){MSG='ลบแล้ว';refresh();}).catch(fail);});return;}
+  if(a==='saveUser'){
+    var card=t.closest('[data-u]'),p2={username:id};
+    card.querySelectorAll('[data-f]').forEach(function(el){var k=el.getAttribute('data-f');if(k==='password'&&!el.value)return;p2[k]=el.value;});
+    call('updateUser',p2).then(function(){MSG='บันทึกผู้ใช้แล้ว';refresh();}).catch(fail);return;
+  }
+  if(a==='addUser'){
+    var p3={};$('newu').querySelectorAll('[data-n]').forEach(function(el){p3[el.getAttribute('data-n')]=el.value;});
+    call('createUser',p3).then(function(){MSG='เพิ่มผู้ใช้แล้ว';refresh();}).catch(fail);return;
+  }
+});
+document.body.addEventListener('change',function(ev){
+  var id=ev.target.id;
+  if(id==='selu'){grab();SEL=ev.target.value;EDIT=null;refresh();}
+  else if(id==='hu'){HF.user=ev.target.value;render();}
+  else if(id==='hf'){HF.from=ev.target.value;render();}
+  else if(id==='ht'){HF.to=ev.target.value;render();}
+});
+
+/* ---------- เริ่มต้น ---------- */
+(function(){
+  var t=null;try{t=localStorage.getItem('vt');}catch(e){}
+  if(!t){loginView();return;}
+  TOKEN=t;
+  call('me').then(function(me){ME=me;boot();}).catch(function(){logout();});
+})();
+</script>
+</body>
+</html>
