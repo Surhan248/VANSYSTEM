@@ -87,7 +87,7 @@ function loginView(){
   $('lp').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});
 }
 function doLogin(){
-  $('lm').textContent='กำลังตรวจสอบ...';
+  $('lm').textContent='กำลังตรวจสอบ...???';
   call('login',{username:$('lu').value,password:$('lp').value}).then(function(r){
     TOKEN=r.token;ME=r.me;try{localStorage.setItem('vt',TOKEN);}catch(e){}
     boot();
